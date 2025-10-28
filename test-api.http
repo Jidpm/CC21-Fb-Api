@@ -1,5 +1,5 @@
 
-GET http://localhost:8899/api/auth/
+GET http://localhost:8899/kk
 ###
 
 GET http://localhost:8899/api/post/

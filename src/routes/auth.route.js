@@ -1,19 +1,15 @@
 import { Router } from "express";
+import { getMe, login, register } from "../controllers/auth.controller.js";
+
 
 
 const authRoute = Router()
 
-authRoute.post('/register',(req, res)=>{
-    res.send('Register Route')
-})
+authRoute.post('/register', register)
 
-authRoute.post('/login',(req, res)=>{
-    res.json({
-        msg: 'Login Route',
-        body: req.body
-    })
-})
+authRoute.post('/login', login)
 
-authRoute.get('/me',(req, res)=> {res.send('Get me Route')})
+
+authRoute.get('/me', getMe)
 
 export default authRoute
