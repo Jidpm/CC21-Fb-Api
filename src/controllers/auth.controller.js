@@ -1,63 +1,82 @@
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 import createHttpError from "http-errors"
 import identityKeyUtil from "../utils/identity-key.util.js"
 import prisma from "../config/prisma.config.js"
-import bcrypt from "bcryptjs"
-import { registerSchema } from "../validations/schema.js"
+import { loginSchema, registerSchema } from '../validations/schema.js'
+import { createUser, getUserBy } from '../services/user.service.js'
 
-export const register = async (req, res, next)=> {
-  const { identity, firstName, lastName, password, confirmPassword } = req.body 
-  //validation
-  // if(!identity.trim() || !firstName.trim() || !lastName.trim() || !password.trim() || !confirmPassword.trim()){
-  //   return next(createHttpError[400],('fill all inputs'))
-  // }
-  const rs = registerSchema.parse(req.body)
-  console.log(rs)
+export const register = async (req, res, next) => {
+  const { identity, firstName, lastName, password, confirmPassword } = req.body
+  // validation
+  const user = registerSchema.parse(req.body)
+  // console.log(user)
+  // check Identity is email or mobile
+  const identityKey = user.email ? 'email' : 'mobile'
 
-
-  if(confirmPassword !== password ){
-    return next(createHttpError[400],('Pass not right อีโจร!!'))
-  }
-  // identity เป็น email หรือ mobile phone number
-  const identityKey = identityKeyUtil(identity)
-
-  if(!identityKey){
+  if (!identityKey) {
     return next(createHttpError[400]('identity must be email or phone number'))
   }
-  // หาว่ามี user นี้แล้วหรือยัง
-  const haveUser = await prisma.user.findUnique({
-    where: {[identityKey]: identity}
-  })
-  if(haveUser){
+
+  // find user if already have registered
+  const haveUser = await getUserBy(identityKey, identity)
+
+  if (haveUser) {
     return next(createHttpError[409]('This user already register'))
   }
-  // เตรียมข้อมูล new user + hash password
-  const newUser = {
-    [identityKey] : identity,
-    password : await bcrypt.hash(password, 10),
-    firstName: firstName,
-    lastName: lastName,
-  }
 
-  const result = await prisma.user.create({data: newUser})
-
+  const newUser = {...user, password: await bcrypt.hash(password, 10) }
+  
+  const result = await createUser(newUser)
   res.json({
     msg: 'Register Successful',
     result: result
   })
 }
 
+export const login = async (req, res, next) => {
 
-export const login = (req, res, next)=> {
-  // if(req.body.password === '12345'){
-  //   return next(createHttpError[400]('wrong password'))
+  const { identity, password } = req.body
+  // validate with zod
+  const user = loginSchema.parse(req.body)
+  // console.log(user)
+  const identityKey = user.email ? 'email' : 'mobile'
+
+  // if (!identityKey) {
+  //   return next(createHttpError[400]('identity must be email or phone number'))
   // }
+
+  const foundUser = await getUserBy(identityKey, identity)
+  // const foundUser = await prisma.user.findUnique({
+  //   where : { [identityKey] : identity}
+  // })
+// have no this user
+  if(!foundUser) {
+    return next(createHttpError[401]('Invalid Login'))
+  }
+  // check password
+  let pwOk = await bcrypt.compare(password, foundUser.password)
+  if(!pwOk) {
+    return next(createHttpError[401]('Invalid Login'))
+  }
+
+  const payload = { id: foundUser.id }
+  const token = jwt.sign(payload, process.env.JWT_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: '15d'
+  })
+  // console.log(token)
+  const {password: pw, createdAt, updatedAt, ...userData} = foundUser
+
   res.json({
-    msg: 'Login controller',
-    body: req.body
+    msg: 'Login Successful',
+    token: token,
+    // user : ให้ส่งข้อมูล user โดยไม่มี password, createdAt, updatedAt
+    user: userData
   })
 }
 
-export const getMe = (req, res)=> {
-  res.json({ msg: 'Getme controller'})
+export const getMe = (req, res) => {
+  res.json({ user: req.user })
 }
 

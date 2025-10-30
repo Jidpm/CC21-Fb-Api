@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getMe, login, register } from "../controllers/auth.controller.js";
+import authenticateMiddleware from "../middlewares/authenticate.middleware.js";
 
 
 
@@ -10,6 +11,6 @@ authRoute.post('/register', register)
 authRoute.post('/login', login)
 
 
-authRoute.get('/me', getMe)
+authRoute.get('/me', authenticateMiddleware ,getMe)
 
 export default authRoute
